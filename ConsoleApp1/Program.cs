@@ -14,10 +14,10 @@ namespace com.inspirationlabs.prerenderer
 {
     class Prerenderer
     {
-        static string Host = "http://127.0.0.1:2015";
-        static int Threads = 50;
+        static string Host = "http://localhost:2015";
+        static int Threads = Environment.ProcessorCount * 20;
         static string Jsonurl = "https://api.staging.mydriver-international.com/mydriver-cms/v3/cms/url";
-        static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + "/output";
+        static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
@@ -72,67 +72,66 @@ namespace com.inspirationlabs.prerenderer
         // download data
         static async Task DownloadAsync(JArray urls)
         {
-            int count = 0;
             Processing processing = new Processing();
+            Queue<Page> qt = new Queue<Page>();
 
-            using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads))
-            using (Browser browser = await Puppeteer.LaunchAsync(new LaunchOptions
+            try
             {
-                Headless = false,
-                Args =  new[] { "--no-sandbox", "--disable-setuid-sandbox" }
-            }))
-            {
-                var tasks = urls.Select(async (urldata) =>
+                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads))
+                using (Browser browser = await Puppeteer.LaunchAsync(new LaunchOptions
                 {
-                    await semaphore.WaitAsync();
-                    try
+                    Headless = true,
+                    Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" }
+                }))
+                {
+                    for (int i = 0; i <= Threads + 50; i++)
                     {
-                        count++;
                         Page page = await browser.NewPageAsync();
                         page.DefaultNavigationTimeout = 120000;
                         var setIsServer = @"
-                            Object.defineProperty(window, 'isServer', {
-                                get() {
-                                    return true
-                                }
-                            });
+                            function(){
+                                Object.defineProperty(window, 'isServer', {
+                                    get() {
+                                        return true
+                                    }
+                                });
+                            }
                         ";
                         await page.EvaluateOnNewDocumentAsync(setIsServer);
-                        await page.SetRequestInterceptionAsync(true);
-                        page.Request += (sender, e) =>
-                        {
-                            string resType = e.Request.ResourceType.ToString();
-                            if (resType == "Image" || resType == "Font")
-                            {
-                                e.Request.AbortAsync();
-                            } else
-                            {
-                                e.Request.ContinueAsync();
-                            }
-                        };
-                        string path = (string)urldata.SelectToken("url");
-                        string url = Host + path;
-                        await page.GoToAsync(url, new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Networkidle0 } });
-                        string content = await page.GetContentAsync();
-                        
-                        await page.CloseAsync();
-                        using (StreamWriter outputFile = new StreamWriter(Path.Combine(Path.Combine(OutputPath, url), "/index.html")))
-                        {
-                            await outputFile.WriteAsync(content);
-                        }
-                        Console.WriteLine(count);
-                        // put the result on the processing pipeline
-                        // processing.QueueItemAsync(content);
+                       
+                        qt.Enqueue(page);
                     }
-                    finally
+
+                    var tasks = urls.Select(async (urldata) =>
                     {
+                            await semaphore.WaitAsync();
+                            Page page = qt.Dequeue();
+                            try
+                            {
+                                
+                                string path = (string)urldata.SelectToken("url");
+                                string url = Host + path;
+                                await page.GoToAsync(url, new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Networkidle0 } });
+                                string content = await page.GetContentAsync();
 
-                        semaphore.Release();
-                    }
-                });
+                                // put the result on the processing pipeline
+                                processing.QueueItemAsync(content, path, OutputPath);
+                            }
+                            finally
+                            {
+                                qt.Enqueue(page);
+                                semaphore.Release();
+                            }
 
-                await Task.WhenAll(tasks.ToArray());
-                // await processing.WaitForCompleteAsync();
+                    });
+
+                    await Task.WhenAll(tasks.ToArray());
+                    await processing.WaitForCompleteAsync();
+                    await browser.CloseAsync();
+                }
+            } catch(Exception e)
+            {
+                Console.WriteLine(e.Message);
             }
         }
     }

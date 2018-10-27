@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,18 +11,27 @@ namespace com.inspirationlabs.prerenderer
         const int MAX_PROCESSORS = 100;
         SemaphoreSlim _semaphore = new SemaphoreSlim(MAX_PROCESSORS);
         HashSet<Task> _pending = new HashSet<Task>();
+        int ElCount = 0;
         object _lock = new Object();
 
-        async Task ProcessAsync(string data)
+        async Task ProcessAsync(string data, string url, string path)
         {
             await _semaphore.WaitAsync();
             try
             {
-                await Task.Run(() =>
+                await Task.Run(async () =>
                 {
-                    // simuate work
-                    //Thread.Sleep(1000);
-                    Console.WriteLine("done");
+                    string fpath = url.Replace('/', Path.DirectorySeparatorChar);
+                    Directory.CreateDirectory(path + fpath);
+                    string indexPath = Path.DirectorySeparatorChar + "index.html";
+                    string cpath = path + fpath + indexPath;
+
+                    using (StreamWriter outputFile = new StreamWriter(cpath))
+                    {
+                        await outputFile.WriteAsync(data);
+                    }
+                    ElCount++;
+                    Console.WriteLine(ElCount + ": " + url);
                 });
             }
             finally
@@ -30,9 +40,9 @@ namespace com.inspirationlabs.prerenderer
             }
         }
 
-        public async void QueueItemAsync(string data)
+        public async void QueueItemAsync(string data, string url, string path)
         {
-            var task = ProcessAsync(data);
+            var task = ProcessAsync(data, url, path);
             lock (_lock)
                 _pending.Add(task);
             try
