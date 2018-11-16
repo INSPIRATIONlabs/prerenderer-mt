@@ -69,11 +69,11 @@ namespace com.inspirationlabs.prerenderer
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/nl\", \"published\":true, \"indexed\":true,\"followed\":true}"));
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/fr\", \"published\":true, \"indexed\":true,\"followed\":true}"));
 
-                // testing
-                while (urldata.Count >= 200)
-                {
-                    urldata.Remove(urldata.Last);
-                }
+                //// testing
+                //while (urldata.Count >= 200)
+                //{
+                //    urldata.Remove(urldata.Last);
+                //}
 
                 var fetcher = await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
                 await DownloadAsync(urldata);
