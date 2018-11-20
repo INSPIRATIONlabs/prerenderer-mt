@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,6 +18,7 @@ namespace com.inspirationlabs.prerenderer
         static int Threads = Environment.ProcessorCount * 20;
         static string Jsonurl = "https://api.staging.mydriver-international.com/mydriver-cms/v3/cms/url";
         static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
+        static string SourcePath = "C:\\Users\\daniel.walther\\Development\\myDriver\\mydriver-seo-web\\www";
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
@@ -25,7 +26,8 @@ namespace com.inspirationlabs.prerenderer
                { "host=", "Set the hostname", v => Host = v },
                { "threads=", "Set the amount of paralell threads", (int v) => Threads = v },
                { "jsonurl=", "Set the endpoint url to get the url list", v => Jsonurl = v},
-               { "outputpath=", "Set the path to output the contents", v => OutputPath = v }
+               { "outputpath=", "Set the path to output the contents", v => OutputPath = v },
+               { "sourcepath=", "Set the path to the source", v => OutputPath = v }
             };
             List<string> extra = p.Parse(args);
 
@@ -41,6 +43,36 @@ namespace com.inspirationlabs.prerenderer
                     Console.WriteLine("Creating outputpath " + OutputPath);
                     Cwd = Directory.CreateDirectory(OutputPath);
                 }
+                // copy assets etc from source if they exist
+                if (Directory.Exists(SourcePath)
+                )
+                {
+                    List<string> dirs = new List<string>() {"assets", "build", "contents"};
+                    dirs.ForEach((name) =>
+                    {
+                    if (Directory.Exists(SourcePath + Path.DirectorySeparatorChar + name))
+                        {
+                            CopyDirectory(
+                                SourcePath + Path.DirectorySeparatorChar + name,
+                                OutputPath + Path.DirectorySeparatorChar + name
+                            );
+                        }
+                    });
+                    if (File.Exists(SourcePath + Path.DirectorySeparatorChar + "robots.txt"))
+                    {
+                        File.Copy(
+                            SourcePath + Path.DirectorySeparatorChar + "robots.txt",
+                            OutputPath + Path.DirectorySeparatorChar + "robots.txt"
+                        );
+                    }
+                    if (File.Exists(SourcePath + Path.DirectorySeparatorChar + "manifest.json"))
+                    {
+                        File.Copy(
+                            SourcePath + Path.DirectorySeparatorChar + "manifest.json",
+                            OutputPath + Path.DirectorySeparatorChar + "manifest.json"
+                        );
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -48,6 +80,10 @@ namespace com.inspirationlabs.prerenderer
             }
             // wait for MainTask (async)
             Maintask().Wait();
+
+            // testing
+            Console.WriteLine("Press any key to close the application.");
+            Console.ReadKey();
         }
 
         static async Task Maintask()
@@ -102,7 +138,7 @@ namespace com.inspirationlabs.prerenderer
                     for (int i = 0; i <= Threads + 50; i++)
                     {
                         Page page = await browser.NewPageAsync();
-                        page.DefaultNavigationTimeout = 150000;
+                        page.DefaultNavigationTimeout = 120000;
                         var setIsServer = @"
                             function(){
                                 Object.defineProperty(window, 'isServer', {
@@ -130,8 +166,8 @@ namespace com.inspirationlabs.prerenderer
                             await page.GoToAsync(url, new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Networkidle0 } });
 
                             await page.MainFrame.EvaluateFunctionAsync(@"function(){"
-                            + scriptBody
-                            + "}");
+                                + scriptBody
+                                + "}");
                             string content = await page.GetContentAsync();
 
                             // put the result on the processing pipeline
@@ -139,13 +175,14 @@ namespace com.inspirationlabs.prerenderer
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e.Message);
+                            Console.WriteLine(e.Message + " (" + (string)urldata.SelectToken("url") + ")");
                         }
                         finally
                         {
                             qt.Enqueue(page);
                             semaphore.Release();
                         }
+                        //return Task.CompletedTask;
 
                     });
 
@@ -158,6 +195,19 @@ namespace com.inspirationlabs.prerenderer
             {
                 Console.WriteLine(e.Message);
             }
+        }
+
+        static void CopyDirectory(string SourcePath, string DestinationPath)
+        {
+            //Now Create all of the directories
+            foreach (string dirPath in Directory.GetDirectories(SourcePath, "*",
+                SearchOption.AllDirectories))
+                Directory.CreateDirectory(dirPath.Replace(SourcePath, DestinationPath));
+
+            //Copy all the files & Replaces any files with the same name
+            foreach (string newPath in Directory.GetFiles(SourcePath, "*.*",
+                SearchOption.AllDirectories))
+                File.Copy(newPath, newPath.Replace(SourcePath, DestinationPath), true);
         }
     }
 }
