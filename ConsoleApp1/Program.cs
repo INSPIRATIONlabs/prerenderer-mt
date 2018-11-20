@@ -15,10 +15,10 @@ namespace com.inspirationlabs.prerenderer
     class Prerenderer
     {
         static string Host = "http://localhost:2015";
-        static int Threads = Environment.ProcessorCount * 20;
-        static string Jsonurl = "https://api.staging.mydriver-international.com/mydriver-cms/v3/cms/url";
+        static int Threads = Environment.ProcessorCount;
+        static string Jsonurl = "https://api.mydriver.com/mydriver-cms/v3/cms/url";
         static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
-        static string SourcePath = "C:\\Users\\daniel.walther\\Development\\myDriver\\mydriver-seo-web\\www";
+        static string SourcePath = "C:\\Users\\eberhardschneider\\Development\\sixt\\mydriver-seo-web\\www";
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
@@ -80,9 +80,7 @@ namespace com.inspirationlabs.prerenderer
             }
             // wait for MainTask (async)
             Maintask().Wait();
-
-            // testing
-            Console.WriteLine("Press any key to close the application.");
+            Console.WriteLine("Press any key to quit");
             Console.ReadKey();
         }
 
@@ -105,7 +103,7 @@ namespace com.inspirationlabs.prerenderer
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/nl\", \"published\":true, \"indexed\":true,\"followed\":true}"));
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/fr\", \"published\":true, \"indexed\":true,\"followed\":true}"));
 
-                //// testing
+                //testing
                 //while (urldata.Count >= 200)
                 //{
                 //    urldata.Remove(urldata.Last);
@@ -120,26 +118,11 @@ namespace com.inspirationlabs.prerenderer
             }
         }
 
-        // download data
-        static async Task DownloadAsync(JArray urls)
+        static async Task<Page> StartPage(Browser browser)
         {
-            Processing processing = new Processing();
-            Queue<Page> qt = new Queue<Page>();
-
-            try
-            {
-                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads))
-                using (Browser browser = await Puppeteer.LaunchAsync(new LaunchOptions
-                {
-                    Headless = true,
-                    Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" }
-                }))
-                {
-                    for (int i = 0; i <= Threads + 50; i++)
-                    {
-                        Page page = await browser.NewPageAsync();
-                        page.DefaultNavigationTimeout = 120000;
-                        var setIsServer = @"
+            Page p = await browser.NewPageAsync();
+            // p.DefaultNavigationTimeout = 120000;
+            var setIsServer = @"
                             function(){
                                 Object.defineProperty(window, 'isServer', {
                                     get() {
@@ -148,11 +131,66 @@ namespace com.inspirationlabs.prerenderer
                                 });
                             }
                         ";
-                        await page.EvaluateOnNewDocumentAsync(setIsServer);
+            await p.EvaluateOnNewDocumentAsync(setIsServer);
+            await p.SetRequestInterceptionAsync(true);
+            p.Request += (sender, e) =>
+            {
+                string resType = e.Request.ResourceType.ToString();
+                if (resType == "Image" || resType == "Font")
+                {
+                    e.Request.AbortAsync();
+                }
+                else
+                {
+                    e.Request.ContinueAsync();
+                }
+            };
+            return p;
+        }
 
+        static async Task<string> GetContent(string url, Page page, string scriptBody, Browser browser)
+        {
+            if (page == null || page.IsClosed)
+            {
+                page = await StartPage(browser);
+            }
+            await page.GoToAsync(url, new NavigationOptions
+            {
+                WaitUntil = new[]
+                {
+                     WaitUntilNavigation.Load
+                }
+            });
+            await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
+            {
+                Timeout = 5000
+            });
+            await page.MainFrame.EvaluateFunctionAsync(@"function(){"
+                + scriptBody
+                + "}");
+            string content = await page.GetContentAsync();
+            return content;
+        }
+
+        // download data
+        static async Task DownloadAsync(JArray urls)
+        {
+            Processing processing = new Processing();
+            Queue<Page> qt = new Queue<Page>();
+
+            try
+            {
+                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads * 2))
+                using (Browser browser = await Puppeteer.LaunchAsync(new LaunchOptions
+                {
+                    Headless = true
+                }))
+                {
+                    for (int i = 0; i <= Threads * 4; i++)
+                    {
+                        Page page = await StartPage(browser);
                         qt.Enqueue(page);
                     }
-
                     String scriptBody = await File.ReadAllTextAsync("assets/prerender.js");
                     var tasks = urls.Select(async (urldata) =>
                     {
@@ -163,29 +201,37 @@ namespace com.inspirationlabs.prerenderer
                             string path = (string)urldata.SelectToken("url");
                             string url = Host + path;
 
-                            await page.GoToAsync(url, new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Networkidle0 } });
-
-                            await page.MainFrame.EvaluateFunctionAsync(@"function(){"
-                                + scriptBody
-                                + "}");
-                            string content = await page.GetContentAsync();
-
+                            string content = await GetContent(url, page, scriptBody, browser);
+                            
                             // put the result on the processing pipeline
                             processing.QueueItemAsync(content, path, OutputPath);
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine(e.Message + " (" + (string)urldata.SelectToken("url") + ")");
+                            Console.WriteLine(e.StackTrace);
+                            try
+                            {
+                                string path = (string)urldata.SelectToken("url");
+                                string url = Host + path;
+                                string content = await GetContent(url, page, scriptBody, browser);
+                                processing.QueueItemAsync(content, path, OutputPath);
+                            } catch(Exception er)
+                            {
+                                Console.WriteLine(er.Message + " (" + (string)urldata.SelectToken("url") + ")");
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine("Second error!!!");
+                                Console.ForegroundColor = ConsoleColor.Gray;
+                            }
                         }
-                        finally
-                        {
-                            qt.Enqueue(page);
+                        finally {
+                            if (!page.IsClosed)
+                            {
+                                qt.Enqueue(page);
+                            }
                             semaphore.Release();
                         }
-                        //return Task.CompletedTask;
-
                     });
-
                     await Task.WhenAll(tasks.ToArray());
                     await processing.WaitForCompleteAsync();
                     await browser.CloseAsync();
