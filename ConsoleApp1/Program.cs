@@ -58,7 +58,9 @@ namespace com.inspirationlabs.prerenderer
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
-            try
+            CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
+            {
+                try
             {
                 // delete outputpath if it exists
                 if (OutputPath.Length > 0 && Directory.Exists(OutputPath))
