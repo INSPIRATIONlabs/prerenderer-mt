@@ -6,31 +6,58 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
-using NDesk.Options;
 using PuppeteerSharp;
 using System.Reflection;
+using CommandLine;
 
 namespace com.inspirationlabs.prerenderer
 {
     class Prerenderer
     {
+        public class Options
+        {
+            [Option('h', "host",
+                Required = true,
+                Default = "http://localhost:2015",
+                HelpText = "Host url to render")]
+            public string Host { get; set; }
+
+            [Option('t', "threads",
+               Required = true,
+               HelpText = "Thread count")]
+            public int Threads { get; set; }
+
+            [Option('u', "urls",
+               Required = true,
+                Default = "https://api.mydriver.com/mydriver-cms/v3/cms/url",
+               HelpText = "http url to the list of urls in json format")]
+            public string Urls { get; set; }
+
+            [Option('c', "chromepath",
+               Required = true,
+               HelpText = "Path to chromium binary")]
+            public string ChromePath { get; set; }
+
+            [Option('o', "output",
+               Required = true,
+               HelpText = "Path to output the data")]
+            public string OutputPath { get; set; }
+
+            [Option('s', "source",
+               Required = true,
+               HelpText = "Sourcepath to the build files of the js project")]
+            public string SourcePath { get; set; }
+        }
+
         static string Host = "http://localhost:2015";
         static int Threads = Environment.ProcessorCount;
         static string Jsonurl = "https://api.mydriver.com/mydriver-cms/v3/cms/url";
         static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
         static string SourcePath = "C:\\Users\\eberhardschneider\\Development\\sixt\\mydriver-seo-web\\www";
+        static string ChromiumPath = "/usr/bin/chromium-browser";
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
-            var p = new OptionSet() {
-               { "host=", "Set the hostname", v => Host = v },
-               { "threads=", "Set the amount of paralell threads", (int v) => Threads = v },
-               { "jsonurl=", "Set the endpoint url to get the url list", v => Jsonurl = v},
-               { "outputpath=", "Set the path to output the contents", v => OutputPath = v },
-               { "sourcepath=", "Set the path to the source", v => OutputPath = v }
-            };
-            List<string> extra = p.Parse(args);
-
             try
             {
                 // delete outputpath if it exists
@@ -109,7 +136,7 @@ namespace com.inspirationlabs.prerenderer
                 //    urldata.Remove(urldata.Last);
                 //}
 
-                var fetcher = await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
+                // var fetcher = await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
                 await DownloadAsync(urldata);
             }
             catch (Exception e)
@@ -183,7 +210,9 @@ namespace com.inspirationlabs.prerenderer
                 using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads * 2))
                 using (Browser browser = await Puppeteer.LaunchAsync(new LaunchOptions
                 {
-                    Headless = true
+                    Headless = true,
+                    ExecutablePath = ChromiumPath,
+                    Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" }
                 }))
                 {
                     for (int i = 0; i <= Threads * 4; i++)

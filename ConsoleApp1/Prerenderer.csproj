@@ -9,8 +9,17 @@
     <PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="NDesk.Options" Version="0.2.1" />
-    <PackageReference Include="PuppeteerSharp" Version="1.9.0" />
+    <PackageReference Include="CommandLineParser" Version="2.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="2.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="PuppeteerSharp">
+      <HintPath>..\..\..\puppeteer-sharp\lib\PuppeteerSharp\bin\Release\netstandard2.0\PuppeteerSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="PuppeteerSharp.DevicesFetcher">
+      <HintPath>..\..\..\puppeteer-sharp\lib\PuppeteerSharp.DevicesFetcher\bin\Release\netcoreapp2.0\PuppeteerSharp.DevicesFetcher.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
