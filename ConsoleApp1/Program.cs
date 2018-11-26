@@ -40,6 +40,10 @@ namespace com.inspirationlabs.prerenderer
                Required = true,
                HelpText = "Sourcepath to the build files of the js project")]
             public string SourcePath { get; set; }
+
+            [Option('h', "host",
+               HelpText = "The host with the source project")]
+            public string Host { get; set; }
         }
 
         static Options CliOptions;
@@ -62,7 +66,7 @@ namespace com.inspirationlabs.prerenderer
                 {
                     Threads = CliOptions.Threads.GetValueOrDefault();
                 }
-                Console.WriteLine("Used CPU core: " + Threads);
+                Console.WriteLine("Used Threads: " + Threads);
                 if (CliOptions.OutputPath != null)
                 {
                     // check if the path is relative                  
@@ -73,6 +77,10 @@ namespace com.inspirationlabs.prerenderer
                 if(CliOptions.ChromePath != null)
                 {
                     ChromiumPath = CliOptions.ChromePath;
+                }
+                if (CliOptions.Host != null)
+                {
+                    Host = CliOptions.Host;
                 }
                 var host = new WebHostBuilder()
                 .UseWebRoot(SourcePath)
@@ -224,18 +232,18 @@ namespace com.inspirationlabs.prerenderer
             {
                 WaitUntil = new[]
                 {
-                     WaitUntilNavigation.Load
+                     WaitUntilNavigation.DOMContentLoaded
                 }
             });
-            await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
-            {
-                Timeout = 10000
-            });
-            await page.MainFrame.EvaluateFunctionAsync(@"function(){"
-                + scriptBody
-                + "}");
-            string content = await page.GetContentAsync();
-            return content;
+            //await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
+            //{
+            //    Timeout = 10000
+            //});
+            //await page.MainFrame.EvaluateFunctionAsync(@"function(){"
+            //    + scriptBody
+            //    + "}"); 
+            // string content = await page.GetContentAsync();
+            return "";
         }
 
         // download data
@@ -248,16 +256,22 @@ namespace com.inspirationlabs.prerenderer
                 LaunchOptions lopts = new LaunchOptions
                 {
                     Headless = true,
-                    Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" }
+                    Args = new[] { "--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu" },
+                    DefaultViewport = new ViewPortOptions
+                    {
+                        Width = 456,
+                        Height = 789
+                    }
                 };
                 if(CliOptions.ChromePath != null)
                 {
                     lopts.ExecutablePath = CliOptions.ChromePath;
                 }
-                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads * 2))
+                int cnt = 0;
+                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads))
                 using (browser = await Puppeteer.LaunchAsync(lopts))
                 {
-                    for (int i = 0; i <= Threads * 4; i++)
+                    for (int i = 0; i <= Threads; i++)
                     {
                         Page page = await StartPage(browser);
                         qt.Enqueue(page);
@@ -271,49 +285,50 @@ namespace com.inspirationlabs.prerenderer
                         {
                             string path = (string)urldata.SelectToken("url");
                             string url = Host + path;
-
                             string content = await GetContent(url, page, scriptBody, browser);
+                            cnt++;
+                            Console.WriteLine(cnt + ": " + url);
 
                             // put the result on the processing pipeline
-                            processing.QueueItemAsync(content, path, OutputPath);
+                            // processing.QueueItemAsync(content, path, OutputPath);
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine(e.Message + " (" + (string)urldata.SelectToken("url") + ")");
                             try
                             {
-                                string path = (string)urldata.SelectToken("url");
-                                string url = Host + path;
-                                string content = await GetContent(url, page, scriptBody, browser);
-                                processing.QueueItemAsync(content, path, OutputPath);
+                                //string path = (string)urldata.SelectToken("url");
+                                //string url = Host + path;
+                                //string content = await GetContent(url, page, scriptBody, browser);
+                                //processing.QueueItemAsync(content, path, OutputPath);
                             }
                             catch (Exception er)
                             {
                                 Console.WriteLine(er.Message + " (" + (string)urldata.SelectToken("url") + ")");
                                 Console.WriteLine("Second error!!!");
-                                try
-                                {
-                                    string path = (string)urldata.SelectToken("url");
-                                    string url = Host + path;
-                                    string content = await GetContent(url, page, scriptBody, browser);
-                                    processing.QueueItemAsync(content, path, OutputPath);
-                                }
-                                catch (Exception er2)
-                                {
-                                    Console.WriteLine(er2.Message + " (" + (string)urldata.SelectToken("url") + ")");
-                                    Console.ForegroundColor = ConsoleColor.Red;
-                                    Console.WriteLine("Third error!!!");
-                                    Console.ForegroundColor = ConsoleColor.Gray;
-                                }
+                                //try
+                                //{
+                                //    string path = (string)urldata.SelectToken("url");
+                                //    string url = Host + path;
+                                //    string content = await GetContent(url, page, scriptBody, browser);
+                                //    processing.QueueItemAsync(content, path, OutputPath);
+                                //}
+                                //catch (Exception er2)
+                                //{
+                                //    Console.WriteLine(er2.Message + " (" + (string)urldata.SelectToken("url") + ")");
+                                //    Console.ForegroundColor = ConsoleColor.Red;
+                                //    Console.WriteLine("Third error!!!");
+                                //    Console.ForegroundColor = ConsoleColor.Gray;
+                                //}
                             }
                         }
                         finally
                         {
+                            semaphore.Release();
                             if (!page.IsClosed)
                             {
                                 qt.Enqueue(page);
                             }
-                            semaphore.Release();
                         }
                     });
                     await Task.WhenAll(tasks.ToArray());
@@ -325,7 +340,10 @@ namespace com.inspirationlabs.prerenderer
                 Console.WriteLine(e.Message);
             } finally
             {
-                await browser.CloseAsync();
+                if(browser != null)
+                {
+                    await browser.CloseAsync();
+                }
             }
         }
 
