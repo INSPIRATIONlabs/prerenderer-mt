@@ -49,6 +49,7 @@ namespace com.inspirationlabs.prerenderer
         static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
         static string SourcePath;
         static string ChromiumPath;
+        static Browser browser;
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
@@ -61,6 +62,7 @@ namespace com.inspirationlabs.prerenderer
                 {
                     Threads = CliOptions.Threads.GetValueOrDefault();
                 }
+                Console.WriteLine("Used CPU core: " + Threads);
                 if (CliOptions.OutputPath != null)
                 {
                     // check if the path is relative                  
@@ -165,12 +167,12 @@ namespace com.inspirationlabs.prerenderer
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/fr\", \"published\":true, \"indexed\":true,\"followed\":true}"));
 
                 //testing
-                while (urldata.Count >= 300)
-                {
-                    urldata.Remove(urldata.Last);
-                }
+                //while (urldata.Count >= 300)
+                //{
+                //    urldata.Remove(urldata.Last);
+                //}
 
-                if (ChromiumPath != null) {
+                if (ChromiumPath == null) {
                     Console.WriteLine("Download Chrome binary");
                     await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
                 }
@@ -227,7 +229,7 @@ namespace com.inspirationlabs.prerenderer
             });
             await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
             {
-                Timeout = 5000
+                Timeout = 10000
             });
             await page.MainFrame.EvaluateFunctionAsync(@"function(){"
                 + scriptBody
@@ -241,7 +243,6 @@ namespace com.inspirationlabs.prerenderer
         {
             Processing processing = new Processing();
             Queue<Page> qt = new Queue<Page>();
-
             try
             {
                 LaunchOptions lopts = new LaunchOptions
@@ -254,7 +255,7 @@ namespace com.inspirationlabs.prerenderer
                     lopts.ExecutablePath = CliOptions.ChromePath;
                 }
                 using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads * 2))
-                using (Browser browser = await Puppeteer.LaunchAsync(lopts))
+                using (browser = await Puppeteer.LaunchAsync(lopts))
                 {
                     for (int i = 0; i <= Threads * 4; i++)
                     {
@@ -279,7 +280,6 @@ namespace com.inspirationlabs.prerenderer
                         catch (Exception e)
                         {
                             Console.WriteLine(e.Message + " (" + (string)urldata.SelectToken("url") + ")");
-                            Console.WriteLine(e.StackTrace);
                             try
                             {
                                 string path = (string)urldata.SelectToken("url");
@@ -290,9 +290,21 @@ namespace com.inspirationlabs.prerenderer
                             catch (Exception er)
                             {
                                 Console.WriteLine(er.Message + " (" + (string)urldata.SelectToken("url") + ")");
-                                Console.ForegroundColor = ConsoleColor.Red;
                                 Console.WriteLine("Second error!!!");
-                                Console.ForegroundColor = ConsoleColor.Gray;
+                                try
+                                {
+                                    string path = (string)urldata.SelectToken("url");
+                                    string url = Host + path;
+                                    string content = await GetContent(url, page, scriptBody, browser);
+                                    processing.QueueItemAsync(content, path, OutputPath);
+                                }
+                                catch (Exception er2)
+                                {
+                                    Console.WriteLine(er2.Message + " (" + (string)urldata.SelectToken("url") + ")");
+                                    Console.ForegroundColor = ConsoleColor.Red;
+                                    Console.WriteLine("Third error!!!");
+                                    Console.ForegroundColor = ConsoleColor.Gray;
+                                }
                             }
                         }
                         finally
@@ -306,12 +318,14 @@ namespace com.inspirationlabs.prerenderer
                     });
                     await Task.WhenAll(tasks.ToArray());
                     await processing.WaitForCompleteAsync();
-                    await browser.CloseAsync();
                 }
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
+            } finally
+            {
+                await browser.CloseAsync();
             }
         }
 
