@@ -9,6 +9,7 @@ using Newtonsoft.Json.Linq;
 using PuppeteerSharp;
 using System.Reflection;
 using CommandLine;
+using Microsoft.AspNetCore.Hosting;
 
 namespace com.inspirationlabs.prerenderer
 {
@@ -16,25 +17,17 @@ namespace com.inspirationlabs.prerenderer
     {
         public class Options
         {
-            [Option('h', "host",
-                Required = true,
-                Default = "http://localhost:2015",
-                HelpText = "Host url to render")]
-            public string Host { get; set; }
 
             [Option('t', "threads",
-               Required = true,
                HelpText = "Thread count")]
-            public int Threads { get; set; }
+            public int? Threads { get; set; }
 
             [Option('u', "urls",
                Required = true,
-                Default = "https://api.mydriver.com/mydriver-cms/v3/cms/url",
                HelpText = "http url to the list of urls in json format")]
             public string Urls { get; set; }
 
             [Option('c', "chromepath",
-               Required = true,
                HelpText = "Path to chromium binary")]
             public string ChromePath { get; set; }
 
@@ -49,18 +42,58 @@ namespace com.inspirationlabs.prerenderer
             public string SourcePath { get; set; }
         }
 
-        static string Host = "http://localhost:2015";
+        static Options CliOptions;
         static int Threads = Environment.ProcessorCount;
-        static string Jsonurl = "https://api.mydriver.com/mydriver-cms/v3/cms/url";
+        static string Host = "http://localhost:5000";
+        static string UrlListUrl;
         static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
-        static string SourcePath = "C:\\Users\\eberhardschneider\\Development\\sixt\\mydriver-seo-web\\www";
-        static string ChromiumPath = "/usr/bin/chromium-browser";
+        static string SourcePath;
+        static string ChromiumPath;
         static DirectoryInfo Cwd;
         static void Main(string[] args)
         {
+
+            // parse the commandline Arguments and checks if everything is valid
             CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
             {
-                try
+                CliOptions = o;
+                if(CliOptions.Threads != null)
+                {
+                    Threads = CliOptions.Threads.GetValueOrDefault();
+                }
+                if (CliOptions.OutputPath != null)
+                {
+                    // check if the path is relative                  
+                    OutputPath = Path.GetFullPath(CliOptions.OutputPath);
+                }
+                SourcePath = CliOptions.SourcePath;
+                UrlListUrl = CliOptions.Urls;
+                if(CliOptions.ChromePath != null)
+                {
+                    ChromiumPath = CliOptions.ChromePath;
+                }
+                var host = new WebHostBuilder()
+                .UseWebRoot(SourcePath)
+                .UseKestrel()
+                .UseStartup<HttpServerStartup>()
+                .Build();
+
+                // start webserver async
+                host.RunAsync();
+                RunApp();
+                Console.WriteLine("Press any key to quit");
+                Console.ReadKey();
+            }).WithNotParsed<Options>( o =>
+            {
+                Console.WriteLine("Missing options");
+                Console.WriteLine("Press any key to quit");
+                Console.ReadKey();
+            });
+        }
+
+        static void RunApp()
+        {
+            try
             {
                 // delete outputpath if it exists
                 if (OutputPath.Length > 0 && Directory.Exists(OutputPath))
@@ -76,10 +109,10 @@ namespace com.inspirationlabs.prerenderer
                 if (Directory.Exists(SourcePath)
                 )
                 {
-                    List<string> dirs = new List<string>() {"assets", "build", "contents"};
+                    List<string> dirs = new List<string>() { "assets", "build", "contents" };
                     dirs.ForEach((name) =>
                     {
-                    if (Directory.Exists(SourcePath + Path.DirectorySeparatorChar + name))
+                        if (Directory.Exists(SourcePath + Path.DirectorySeparatorChar + name))
                         {
                             CopyDirectory(
                                 SourcePath + Path.DirectorySeparatorChar + name,
@@ -109,8 +142,6 @@ namespace com.inspirationlabs.prerenderer
             }
             // wait for MainTask (async)
             Maintask().Wait();
-            Console.WriteLine("Press any key to quit");
-            Console.ReadKey();
         }
 
         static async Task Maintask()
@@ -118,7 +149,7 @@ namespace com.inspirationlabs.prerenderer
             try
             {
                 HttpClient client = new HttpClient();
-                HttpResponseMessage response = await client.GetAsync(Jsonurl);
+                HttpResponseMessage response = await client.GetAsync(CliOptions.Urls);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync();
@@ -138,7 +169,10 @@ namespace com.inspirationlabs.prerenderer
                 //    urldata.Remove(urldata.Last);
                 //}
 
-                // var fetcher = await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
+                if(ChromiumPath != null) {
+                    Console.WriteLine("Download Chrome binary");
+                    await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
+                }
                 await DownloadAsync(urldata);
             }
             catch (Exception e)
@@ -209,13 +243,17 @@ namespace com.inspirationlabs.prerenderer
 
             try
             {
-                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads * 2))
-                using (Browser browser = await Puppeteer.LaunchAsync(new LaunchOptions
+                LaunchOptions lopts = new LaunchOptions
                 {
                     Headless = true,
-                    ExecutablePath = ChromiumPath,
                     Args = new[] { "--no-sandbox", "--disable-setuid-sandbox" }
-                }))
+                };
+                if(CliOptions.ChromePath != null)
+                {
+                    lopts.ExecutablePath = CliOptions.ChromePath;
+                }
+                using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads * 2))
+                using (Browser browser = await Puppeteer.LaunchAsync(lopts))
                 {
                     for (int i = 0; i <= Threads * 4; i++)
                     {
@@ -233,7 +271,7 @@ namespace com.inspirationlabs.prerenderer
                             string url = Host + path;
 
                             string content = await GetContent(url, page, scriptBody, browser);
-                            
+
                             // put the result on the processing pipeline
                             processing.QueueItemAsync(content, path, OutputPath);
                         }
@@ -247,7 +285,8 @@ namespace com.inspirationlabs.prerenderer
                                 string url = Host + path;
                                 string content = await GetContent(url, page, scriptBody, browser);
                                 processing.QueueItemAsync(content, path, OutputPath);
-                            } catch(Exception er)
+                            }
+                            catch (Exception er)
                             {
                                 Console.WriteLine(er.Message + " (" + (string)urldata.SelectToken("url") + ")");
                                 Console.ForegroundColor = ConsoleColor.Red;
@@ -255,7 +294,8 @@ namespace com.inspirationlabs.prerenderer
                                 Console.ForegroundColor = ConsoleColor.Gray;
                             }
                         }
-                        finally {
+                        finally
+                        {
                             if (!page.IsClosed)
                             {
                                 qt.Enqueue(page);
