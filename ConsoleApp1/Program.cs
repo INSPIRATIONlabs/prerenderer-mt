@@ -83,6 +83,7 @@ namespace com.inspirationlabs.prerenderer
                 RunApp();
                 Console.WriteLine("Press any key to quit");
                 Console.ReadKey();
+                host.Dispose();
             }).WithNotParsed<Options>( o =>
             {
                 Console.WriteLine("Missing options");
@@ -164,12 +165,12 @@ namespace com.inspirationlabs.prerenderer
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/fr\", \"published\":true, \"indexed\":true,\"followed\":true}"));
 
                 //testing
-                //while (urldata.Count >= 200)
-                //{
-                //    urldata.Remove(urldata.Last);
-                //}
+                while (urldata.Count >= 300)
+                {
+                    urldata.Remove(urldata.Last);
+                }
 
-                if(ChromiumPath != null) {
+                if (ChromiumPath != null) {
                     Console.WriteLine("Download Chrome binary");
                     await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
                 }
