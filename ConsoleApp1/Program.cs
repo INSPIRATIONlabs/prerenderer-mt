@@ -154,7 +154,7 @@ namespace com.inspirationlabs.prerenderer
             // wait for MainTask (async)
             Maintask().Wait();
         }
-
+        
         static async Task Maintask()
         {
             try
@@ -222,7 +222,7 @@ namespace com.inspirationlabs.prerenderer
             return p;
         }
 
-        static async Task<string> GetContent(string url, Page page, string scriptBody, Browser browser)
+        static async Task SetPage(string url, Page page, Browser browser)
         {
             if (page == null || page.IsClosed)
             {
@@ -234,11 +234,15 @@ namespace com.inspirationlabs.prerenderer
                 {
                      WaitUntilNavigation.DOMContentLoaded
                 }
+            });           
+        }
+
+        static async Task<string> GetContent(Page page, string scriptBody, Browser browser)
+        {
+            await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
+            {
+                Timeout = 10000
             });
-            //await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
-            //{
-            //    Timeout = 10000
-            //});
             //await page.MainFrame.EvaluateFunctionAsync(@"function(){"
             //    + scriptBody
             //    + "}"); 
@@ -271,64 +275,42 @@ namespace com.inspirationlabs.prerenderer
                 using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads))
                 using (browser = await Puppeteer.LaunchAsync(lopts))
                 {
-                    for (int i = 0; i <= Threads; i++)
+                    for (int i = 0; i <= Threads * 4; i++)
                     {
                         Page page = await StartPage(browser);
                         qt.Enqueue(page);
+
                     }
                     String scriptBody = await File.ReadAllTextAsync("assets/prerender.js");
+
                     var tasks = urls.Select(async (urldata) =>
                     {
                         await semaphore.WaitAsync();
+                        if (qt.Count < 1)
+                        {
+                            Console.WriteLine("recreate page");
+                            Page p = await StartPage(browser);
+                            qt.Enqueue(p);
+                        }
+
                         Page page = qt.Dequeue();
                         try
                         {
                             string path = (string)urldata.SelectToken("url");
                             string url = Host + path;
-                            string content = await GetContent(url, page, scriptBody, browser);
+                            await SetPage(url, page, browser);
                             cnt++;
-                            Console.WriteLine(cnt + ": " + url);
 
                             // put the result on the processing pipeline
-                            // processing.QueueItemAsync(content, path, OutputPath);
+                            processing.QueueItemAsync(page, qt, scriptBody, OutputPath, path);
                         }
                         catch (Exception e)
                         {
                             Console.WriteLine(e.Message + " (" + (string)urldata.SelectToken("url") + ")");
-                            try
-                            {
-                                //string path = (string)urldata.SelectToken("url");
-                                //string url = Host + path;
-                                //string content = await GetContent(url, page, scriptBody, browser);
-                                //processing.QueueItemAsync(content, path, OutputPath);
-                            }
-                            catch (Exception er)
-                            {
-                                Console.WriteLine(er.Message + " (" + (string)urldata.SelectToken("url") + ")");
-                                Console.WriteLine("Second error!!!");
-                                //try
-                                //{
-                                //    string path = (string)urldata.SelectToken("url");
-                                //    string url = Host + path;
-                                //    string content = await GetContent(url, page, scriptBody, browser);
-                                //    processing.QueueItemAsync(content, path, OutputPath);
-                                //}
-                                //catch (Exception er2)
-                                //{
-                                //    Console.WriteLine(er2.Message + " (" + (string)urldata.SelectToken("url") + ")");
-                                //    Console.ForegroundColor = ConsoleColor.Red;
-                                //    Console.WriteLine("Third error!!!");
-                                //    Console.ForegroundColor = ConsoleColor.Gray;
-                                //}
-                            }
                         }
                         finally
                         {
                             semaphore.Release();
-                            if (!page.IsClosed)
-                            {
-                                qt.Enqueue(page);
-                            }
                         }
                     });
                     await Task.WhenAll(tasks.ToArray());

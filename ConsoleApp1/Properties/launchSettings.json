@@ -2,7 +2,7 @@
   "profiles": {
     "Prerenderer": {
       "commandName": "Project",
-      "commandLineArgs": "-u https://api.staging.mydriver-international.com/mydriver-cms/v3/cms/url -o output -s C:\\Users\\dominic.boettger\\mydriver\\seo-web\\www\\ -h http://localhost:2015"
+      "commandLineArgs": "-u https://api.staging.mydriver-international.com/mydriver-cms/v3/cms/url -o output -s C:\\Users\\dominic.boettger\\mydriver\\seo-web\\www\\"
     }
   }
 }
