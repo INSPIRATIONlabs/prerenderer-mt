@@ -13,8 +13,14 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace com.inspirationlabs.prerenderer
 {
+    /// <summary>
+    /// Provides a CLI interface for prendering pages
+    /// </summary>
     class Prerenderer
     {
+        /// <summary>
+        /// Subclass to provide the CLI options for the application
+        /// </summary>
         public class Options
         {
 
@@ -44,17 +50,66 @@ namespace com.inspirationlabs.prerenderer
             [Option('h', "host",
                HelpText = "The host with the source project")]
             public string Host { get; set; }
+
+            [Option('i', "injectFile",
+                HelpText = "Path to a JS file to inject")]
+            public string InjectPath { get; set; }
         }
 
+        /// <summary>
+        /// Provides all options which have been set by the CLI interface
+        /// </summary>
         static Options CliOptions;
+        /// <summary>
+        /// The amount of threads for this process defaulting to the current count of available processors
+        /// </summary>
         static int Threads = Environment.ProcessorCount;
+        /// <summary>
+        /// The source host where we fetch the data from
+        /// </summary>
         static string Host = "http://localhost:5000";
+        /// <summary>
+        /// The whole list of urls as json
+        /// </summary>
+        /// <code>
+        /// data: [
+        ///   {
+        ///     url: "/en/vivicity",
+        ///     published: true,
+        ///     indexed: true,
+        ///     followed: true
+        ///   }
+        /// ]
+        /// </code>
         static string UrlListUrl;
+        /// <summary>
+        /// The output path of the rendered contents
+        /// </summary>
         static string OutputPath = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location) + Path.DirectorySeparatorChar + "output";
+        /// <summary>
+        /// The source path which provides the basic index.html and the javascript
+        /// </summary>
         static string SourcePath;
+        /// <summary>
+        /// Path to a installed chromium version
+        /// </summary>
         static string ChromiumPath;
+        /// <summary>
+        /// Path to a JS file which should be injected
+        /// </summary>
+        static string InjectFile;
+        /// <summary>
+        /// Reference to the created browser instance
+        /// </summary>
         static Browser browser;
+        /// <summary>
+        /// Informations about the current working directory
+        /// </summary>
         static DirectoryInfo Cwd;
+/// <summary>
+        /// Main application run function
+        /// </summary>
+        /// <param name="args"></param>
         static void Main(string[] args)
         {
 
@@ -62,38 +117,48 @@ namespace com.inspirationlabs.prerenderer
             CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
             {
                 CliOptions = o;
+                // checks if we got a commandline parameter to manipulate the threadcount
                 if(CliOptions.Threads != null)
                 {
                     Threads = CliOptions.Threads.GetValueOrDefault();
                 }
                 Console.WriteLine("Used Threads: " + Threads);
+                // checks if the output path has been set by the commandline parameter and sets the static variable
                 if (CliOptions.OutputPath != null)
                 {
                     // check if the path is relative                  
                     OutputPath = Path.GetFullPath(CliOptions.OutputPath);
                 }
+                // sets the source path to the provided sourcepath by the commandline paramater
                 SourcePath = CliOptions.SourcePath;
+                // sets the url list to the parameter provided by the commandline parameter
                 UrlListUrl = CliOptions.Urls;
+                // sets the path to a existing chromium version in the operating system
+                // if not set the prerenderer tries to download a chrome version
                 if(CliOptions.ChromePath != null)
                 {
                     ChromiumPath = CliOptions.ChromePath;
                 }
+                // sets the url to the host we try to render from
                 if (CliOptions.Host != null)
                 {
                     Host = CliOptions.Host;
                 }
-                var host = new WebHostBuilder()
+                if (CliOptions.InjectPath != null)
+                {
+                    InjectFile = CliOptions.InjectPath;
+                }
+                // initializes a http server on the sourcepath and defaults to port 5000 and 5001 if the needed certs are installed
+                IWebHost webHost = new WebHostBuilder()
                 .UseWebRoot(SourcePath)
                 .UseKestrel()
                 .UseStartup<HttpServerStartup>()
                 .Build();
 
                 // start webserver async
-                host.RunAsync();
+                webHost.RunAsync();
                 RunApp();
-                Console.WriteLine("Press any key to quit");
-                Console.ReadKey();
-                host.Dispose();
+                webHost.Dispose();
             }).WithNotParsed<Options>( o =>
             {
                 Console.WriteLine("Missing options");
@@ -159,13 +224,18 @@ namespace com.inspirationlabs.prerenderer
         {
             try
             {
+                // create a new httpClient
                 HttpClient client = new HttpClient();
+                // get the list of urls from the url set by the cli options
                 HttpResponseMessage response = await client.GetAsync(CliOptions.Urls);
                 response.EnsureSuccessStatusCode();
-
+                // get the content from the response
                 string responseBody = await response.Content.ReadAsStringAsync();
+                // parse the response to a JObject
                 JObject jObject = JObject.Parse(responseBody);
+                // get the array from the json object which provides the url
                 JArray urldata = (JArray)jObject["data"];
+                // this is a workaround as long as the static contents are missing
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/\", \"published\":true, \"indexed\":true,\"followed\":true}"));
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/de\", \"published\":true, \"indexed\":true,\"followed\":true}"));
                 urldata.AddFirst(JToken.Parse("{\"url\": \"/en\", \"published\":true, \"indexed\":true,\"followed\":true}"));
@@ -180,10 +250,12 @@ namespace com.inspirationlabs.prerenderer
                 //    urldata.Remove(urldata.Last);
                 //}
 
+                // Download chrome if there hasn't been a chromium provided
                 if (ChromiumPath == null) {
                     Console.WriteLine("Download Chrome binary");
                     await new BrowserFetcher().DownloadAsync(BrowserFetcher.DefaultRevision);
                 }
+                // Start the async download function
                 await DownloadAsync(urldata);
             }
             catch (Exception e)
@@ -221,7 +293,13 @@ namespace com.inspirationlabs.prerenderer
             };
             return p;
         }
-
+        /// <summary>
+        /// Go to the url in the provided browser tab
+        /// </summary>
+        /// <param name="url"></param>
+        /// <param name="page"></param>
+        /// <param name="browser"></param>
+        /// <returns></returns>
         static async Task SetPage(string url, Page page, Browser browser)
         {
             if (page == null || page.IsClosed)
@@ -237,20 +315,11 @@ namespace com.inspirationlabs.prerenderer
             });           
         }
 
-        static async Task<string> GetContent(Page page, string scriptBody, Browser browser)
-        {
-            await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
-            {
-                Timeout = 10000
-            });
-            //await page.MainFrame.EvaluateFunctionAsync(@"function(){"
-            //    + scriptBody
-            //    + "}"); 
-            // string content = await page.GetContentAsync();
-            return "";
-        }
-
-        // download data
+        /// <summary>
+        /// Prerender everything in the provided url list
+        /// </summary>
+        /// <param name="urls"></param>
+        /// <returns></returns>
         static async Task DownloadAsync(JArray urls)
         {
             Processing processing = new Processing();
@@ -281,7 +350,11 @@ namespace com.inspirationlabs.prerenderer
                         qt.Enqueue(page);
 
                     }
-                    String scriptBody = await File.ReadAllTextAsync("assets/prerender.js");
+                    String scriptBody = "";
+
+                    if(InjectFile != null) {
+                        scriptBody = await File.ReadAllTextAsync(InjectFile);
+                    }
 
                     var tasks = urls.Select(async (urldata) =>
                     {

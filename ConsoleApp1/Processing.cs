@@ -30,9 +30,12 @@ namespace com.inspirationlabs.prerenderer
                     {
                         Timeout = 30000
                     });
-                    await page.MainFrame.EvaluateFunctionAsync(@"function(){"
-                    + scriptBody
-                    + "}");
+                    if( scriptBody.Length > 0)
+                    {
+                        await page.MainFrame.EvaluateFunctionAsync(@"function(){"
+                        + scriptBody
+                        + "}");
+                    }
                     string content = await page.GetContentAsync();
                     pageQueue.Enqueue(page);
                     string fpath = url.Replace('/', Path.DirectorySeparatorChar);
