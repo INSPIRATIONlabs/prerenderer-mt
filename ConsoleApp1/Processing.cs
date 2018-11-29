@@ -16,77 +16,47 @@ namespace com.inspirationlabs.prerenderer
         int ElCount = 0;
         object _lock = new Object();
 
-       
-    async Task ProcessAsync(Page page, Queue<Page> pageQueue, string scriptBody, string path, string url)
-    {
-        await _semaphore.WaitAsync();
-        try
+        async Task ProcessAsync(Page page, Queue<Page> pageQueue, string scriptBody, string path, string url)
         {
-            await Task.Run(async () =>
+            await _semaphore.WaitAsync();
+            try
             {
-                try
+                await Task.Run(async () =>
                 {
-                    await page.WaitForSelectorAsync("app-root.hydrated", new WaitForSelectorOptions
+                    try
                     {
-                        Timeout = 30000
-                    });
-                    if( scriptBody.Length > 0)
+                        if( scriptBody.Length > 0)
+                        {
+                            await page.MainFrame.EvaluateFunctionAsync(@"function(){"
+                            + scriptBody
+                            + "}");
+                        }
+                        string content = await page.GetContentAsync();
+                        pageQueue.Enqueue(page);
+                        string fpath = url.Replace('/', Path.DirectorySeparatorChar);
+                        Directory.CreateDirectory(path + fpath);
+                        string indexPath = Path.DirectorySeparatorChar + "index.html";
+                        string cpath = path + fpath + indexPath;
+
+                        using (StreamWriter outputFile = new StreamWriter(cpath))
+                        {
+                            await outputFile.WriteAsync(content);
+                        }
+                        ElCount++;
+                        Console.WriteLine(ElCount + ": " + page.Url);
+                    } catch (Exception er)
                     {
-                        await page.MainFrame.EvaluateFunctionAsync(@"function(){"
-                        + scriptBody
-                        + "}");
+                        Console.WriteLine(er.Message);
                     }
-                    string content = await page.GetContentAsync();
-                    pageQueue.Enqueue(page);
-                    string fpath = url.Replace('/', Path.DirectorySeparatorChar);
-                    Directory.CreateDirectory(path + fpath);
-                    string indexPath = Path.DirectorySeparatorChar + "index.html";
-                    string cpath = path + fpath + indexPath;
-
-                    using (StreamWriter outputFile = new StreamWriter(cpath))
-                    {
-                        await outputFile.WriteAsync(content);
-                    }
-                    ElCount++;
-                    Console.WriteLine(ElCount + ": " + page.Url);
-                } catch (Exception er)
-                {
-                    Console.WriteLine(er.Message);
-                }
-            });
+                });
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
-        finally
-        {
-            _semaphore.Release();
-        }
-    }
-    //async Task ProcessAsync(string data, string url, string path)
-    //{
-    //    await _semaphore.WaitAsync();
-    //    try
-    //    {
-    //        await Task.Run(async () =>
-    //        {
-    //            string fpath = url.Replace('/', Path.DirectorySeparatorChar);
-    //            Directory.CreateDirectory(path + fpath);
-    //            string indexPath = Path.DirectorySeparatorChar + "index.html";
-    //            string cpath = path + fpath + indexPath;
 
-    //            using (StreamWriter outputFile = new StreamWriter(cpath))
-    //            {
-    //                await outputFile.WriteAsync(data);
-    //            }
-    //            ElCount++;
-    //            Console.WriteLine(ElCount + ": " + url);
-    //        });
-    //    }
-    //    finally
-    //    {
-    //        _semaphore.Release();
-    //    }
-    //}
-
-    public async void QueueItemAsync(Page page, Queue<Page> pageQueue, string scriptBody, string path, string url)
+        public async void QueueItemAsync(Page page, Queue<Page> pageQueue, string scriptBody, string path, string url)
         {
             var task = ProcessAsync(page, pageQueue, scriptBody, path, url);
             lock (_lock)
@@ -99,7 +69,7 @@ namespace com.inspirationlabs.prerenderer
             {
                 if (!task.IsCanceled && !task.IsFaulted)
                     throw; // not the task's exception, rethrow
-                           // don't remove faulted/cancelled tasks from the list
+                            // don't remove faulted/cancelled tasks from the list
                 return;
             }
             // remove successfully completed tasks from the list 
@@ -114,5 +84,5 @@ namespace com.inspirationlabs.prerenderer
                 tasks = System.Linq.Enumerable.ToArray(_pending);
             await Task.WhenAll(tasks);
         }
-    }
+    }   
 }
