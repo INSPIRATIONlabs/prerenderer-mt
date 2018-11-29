@@ -264,57 +264,6 @@ namespace com.inspirationlabs.prerenderer
             }
         }
 
-        static async Task<Page> StartPage(Browser browser)
-        {
-            Page p = await browser.NewPageAsync();
-            // p.DefaultNavigationTimeout = 120000;
-            var setIsServer = @"
-                            function(){
-                                Object.defineProperty(window, 'isServer', {
-                                    get() {
-                                        return true
-                                    }
-                                });
-                            }
-                        ";
-            await p.EvaluateOnNewDocumentAsync(setIsServer);
-            await p.SetRequestInterceptionAsync(true);
-            p.Request += (sender, e) =>
-            {
-                string resType = e.Request.ResourceType.ToString();
-                if (resType == "Image" || resType == "Font")
-                {
-                    e.Request.AbortAsync();
-                }
-                else
-                {
-                    e.Request.ContinueAsync();
-                }
-            };
-            return p;
-        }
-        /// <summary>
-        /// Go to the url in the provided browser tab
-        /// </summary>
-        /// <param name="url"></param>
-        /// <param name="page"></param>
-        /// <param name="browser"></param>
-        /// <returns></returns>
-        static async Task SetPage(string url, Page page, Browser browser)
-        {
-            if (page == null || page.IsClosed)
-            {
-                page = await StartPage(browser);
-            }
-            await page.GoToAsync(url, new NavigationOptions
-            {
-                WaitUntil = new[]
-                {
-                     WaitUntilNavigation.DOMContentLoaded
-                }
-            });           
-        }
-
         /// <summary>
         /// Prerender everything in the provided url list
         /// </summary>
@@ -346,7 +295,7 @@ namespace com.inspirationlabs.prerenderer
                 {
                     for (int i = 0; i <= Threads * 4; i++)
                     {
-                        Page page = await StartPage(browser);
+                        Page page = await RenderPage.StartPage(browser);
                         qt.Enqueue(page);
 
                     }
@@ -362,7 +311,7 @@ namespace com.inspirationlabs.prerenderer
                         if (qt.Count < 1)
                         {
                             Console.WriteLine("recreate page");
-                            Page p = await StartPage(browser);
+                            Page p = await RenderPage.StartPage(browser);
                             qt.Enqueue(p);
                         }
 
@@ -371,7 +320,9 @@ namespace com.inspirationlabs.prerenderer
                         {
                             string path = (string)urldata.SelectToken("url");
                             string url = Host + path;
-                            await SetPage(url, page, browser);
+                            RenderPage currPage = new RenderPage(page, path, Host);
+
+                            await currPage.SetPage(url, page, browser);
                             cnt++;
 
                             // put the result on the processing pipeline
