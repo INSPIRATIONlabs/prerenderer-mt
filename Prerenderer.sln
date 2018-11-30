@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2046
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Prerenderer", "ConsoleApp1\Prerenderer.csproj", "{CDCFCD28-7B70-4EAD-8751-44FA452C2A0C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Prerenderer", "Prerenderer-cli\Prerenderer.csproj", "{CDCFCD28-7B70-4EAD-8751-44FA452C2A0C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
