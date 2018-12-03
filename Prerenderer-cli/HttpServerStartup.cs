@@ -8,11 +8,25 @@ namespace com.inspirationlabs.prerenderer
 {
     public class HttpServerStartup
     {
+        public static string basePath = "";
         public void Configure(IApplicationBuilder app)
         {
 
             app.Use(async (ctx, next) =>
             {
+                if(basePath.Length > 0)
+                {
+                    if(ctx.Request.Path.Value.StartsWith(basePath))
+                    {
+                        string repl = ctx.Request.Path.Value.Remove(0, basePath.Length);
+                        if(!repl.StartsWith("/")) {
+                            repl = "/" + repl;
+                        }
+                        //ctx.Request.Path = new PathString(ctx.Request.Path.Value.Replace(basePath, ""));
+                        ctx.Request.Path = repl;
+                    }
+                }
+
                 await next();
 
                 if (ctx.Response.StatusCode == 404 && !ctx.Response.HasStarted)

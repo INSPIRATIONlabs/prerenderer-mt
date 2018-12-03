@@ -158,6 +158,7 @@ namespace com.inspirationlabs.prerenderer
                 {
                     InjectFile = CliOptions.InjectPath;
                 }
+                HttpServerStartup.basePath = CliOptions.BasePath;
                 // initializes a http server on the sourcepath and defaults to port 5000 and 5001 if the needed certs are installed
                 IWebHost webHost = new WebHostBuilder()
                 .UseWebRoot(SourcePath)
@@ -310,7 +311,7 @@ namespace com.inspirationlabs.prerenderer
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e.Message + " (" + (string)urldata.SelectToken("url") + ")");
+                            Console.WriteLine(e.Message + " (" + CliOptions.BasePath + (string)urldata.SelectToken("url") + ")");
                         }
                         finally
                         {

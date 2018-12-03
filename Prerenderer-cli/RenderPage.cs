@@ -133,6 +133,7 @@ namespace com.inspirationlabs.prerenderer
             }
             pagePath = path;
             pageUrl = pageHostUrl + baseUrl + pagePath;
+
             if (pageTab == null || pageTab.IsClosed)
             {
                 pageTab = await StartPage();
@@ -191,7 +192,7 @@ namespace com.inspirationlabs.prerenderer
                 retryCount++;
                 if(retryCount <= maxRetry)
                 {
-                    Console.WriteLine("Retry " + retryCount + " for " + pagePath);
+                    Console.WriteLine("Retry " + retryCount + " for " + pageUrl);
                     await pageTab.CloseAsync();
                     await StartPage();
                     await SetPage(pagePath);
