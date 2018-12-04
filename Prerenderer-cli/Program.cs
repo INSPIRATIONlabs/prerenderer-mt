@@ -226,8 +226,7 @@ namespace com.inspirationlabs.prerenderer
                             op + Path.DirectorySeparatorChar + "manifest.json"
                         );
                     }
-                } else
-                {
+                } else {
                     throw new Exception("Source directory does not exist");
                 }
                 // wait for MainTask (async)
