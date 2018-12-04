@@ -11,7 +11,6 @@ namespace com.inspirationlabs.prerenderer
         public static string basePath = "";
         public void Configure(IApplicationBuilder app)
         {
-
             app.Use(async (ctx, next) =>
             {
                 if(basePath.Length > 0)
@@ -38,9 +37,7 @@ namespace com.inspirationlabs.prerenderer
                     await next();
                 }
             });
-
             app.UseFileServer();
-
         }
     }
 }

@@ -234,7 +234,8 @@ namespace com.inspirationlabs.prerenderer
                     await StartPage();
                     await SetPage(pagePath);
                     await WaitAndEval();
-                } else
+                }
+                else
                 {
                     // reset the retryCount and bubble up the exception
                     retryCount = 0;

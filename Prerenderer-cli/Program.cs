@@ -23,7 +23,6 @@ namespace com.inspirationlabs.prerenderer
         /// </summary>
         public class Options
         {
-
             [Option('t', "threads",
                HelpText = "Thread count")]
             public int? Threads { get; set; }
@@ -122,7 +121,6 @@ namespace com.inspirationlabs.prerenderer
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-
             // parse the commandline Arguments and checks if everything is valid
             CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(o =>
             {
@@ -226,7 +224,9 @@ namespace com.inspirationlabs.prerenderer
                             op + Path.DirectorySeparatorChar + "manifest.json"
                         );
                     }
-                } else {
+                }
+                else
+                {
                     throw new Exception("Source directory does not exist");
                 }
                 // wait for MainTask (async)
@@ -280,7 +280,6 @@ namespace com.inspirationlabs.prerenderer
             Queue<RenderPage> qt = new Queue<RenderPage>();
             try
             {
-
                 int cnt = 0;
                 using (SemaphoreSlim semaphore = new SemaphoreSlim(Threads))
                 using (browser = await RenderPage.StartBrowser(ChromiumPath))
@@ -329,7 +328,8 @@ namespace com.inspirationlabs.prerenderer
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-            } finally
+            }
+            finally
             {
                 if(browser != null)
                 {
