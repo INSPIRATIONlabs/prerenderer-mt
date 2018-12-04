@@ -10,9 +10,17 @@ using PuppeteerSharp;
 using System.Reflection;
 using CommandLine;
 using Microsoft.AspNetCore.Hosting;
+using System.Xml.Linq;
 
 namespace com.inspirationlabs.prerenderer
 {
+    class UrlElement
+    {
+        public string url { get; set; }
+        public bool published { get; set; }
+        public bool indexed { get; set; }
+        public bool followed { get; set; }
+    }
     /// <summary>
     /// Provides a CLI interface for prendering pages
     /// </summary>
@@ -63,6 +71,11 @@ namespace com.inspirationlabs.prerenderer
                 Default = "",
                 HelpText = "basePath for the rendering (only needed if it is not /)")]
             public string BasePath { get; set; }
+
+            [Option('m', "siteMap",
+                Default = true,
+                HelpText = "Generate sitemap.xml")]
+            public bool SiteMap { get; set; }
         }
 
         /// <summary>
@@ -253,7 +266,8 @@ namespace com.inspirationlabs.prerenderer
                 JObject jObject = JObject.Parse(responseBody);
                 // get the array from the json object which provides the url
                 JArray urldata = (JArray)jObject["data"];
-
+                List<UrlElement> urllist = urldata.ToObject<List<UrlElement>>();
+                List<UrlElement> filteredList = urllist.Where(x => x.published == true).ToList<UrlElement>();
                 //testing
                 //while (urldata.Count >= 300)
                 //{
@@ -261,7 +275,17 @@ namespace com.inspirationlabs.prerenderer
                 //}
 
                 // Start the async download function
-                await DownloadAsync(urldata);
+                await DownloadAsync(filteredList);
+                // generate sitemap.xml
+                if (CliOptions.SiteMap == true)
+                {
+                    string op = OutputPath;
+                    if (CliOptions.BasePath.Length > 0)
+                    {
+                        op = OutputPath + CliOptions.BasePath.Replace('/', Path.DirectorySeparatorChar);
+                    }
+                    GenerateSiteMap(filteredList, op);
+                }
             }
             catch (Exception e)
             {
@@ -274,7 +298,7 @@ namespace com.inspirationlabs.prerenderer
         /// </summary>
         /// <param name="urls"></param>
         /// <returns></returns>
-        static async Task DownloadAsync(JArray urls)
+        static async Task DownloadAsync(List<UrlElement> urls)
         {
             Processing processing = new Processing();
             Queue<RenderPage> qt = new Queue<RenderPage>();
@@ -305,7 +329,7 @@ namespace com.inspirationlabs.prerenderer
                         RenderPage rendPage = qt.Dequeue();
                         try
                         {
-                            string path = (string)urldata.SelectToken("url");
+                            string path = urldata.url;
                             await rendPage.SetPage(path);
                             cnt++;
 
@@ -314,7 +338,7 @@ namespace com.inspirationlabs.prerenderer
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine(e.Message + " (" + CliOptions.BasePath + (string)urldata.SelectToken("url") + ")");
+                            Console.WriteLine(e.Message + " (" + CliOptions.BasePath + urldata.url + ")");
                         }
                         finally
                         {
@@ -349,6 +373,21 @@ namespace com.inspirationlabs.prerenderer
             foreach (string newPath in Directory.GetFiles(SourcePath, "*.*",
                 SearchOption.AllDirectories))
                 File.Copy(newPath, newPath.Replace(SourcePath, DestinationPath), true);
+        }
+
+        /// <summary>
+        /// Generates a xml sitemap
+        /// </summary>
+        /// <param name="urllist"></param>
+        /// <param name="outputpath"></param>
+        static void GenerateSiteMap(List<UrlElement> urllist, string outputpath )
+        {
+            XDocument doc = new XDocument();
+            XNamespace sitemapNs = "http://www.sitemaps.org/schemas/sitemap/0.9";
+            XElement urlListEl = new XElement(sitemapNs + "urlset");
+            urlListEl.Add(urllist.Select((x => new XElement(sitemapNs + "url", new XElement(sitemapNs + "loc", x.url)))));
+            doc.Add(urlListEl);
+            doc.Save(outputpath + "/sitemap.xml");
         }
     }
 }
