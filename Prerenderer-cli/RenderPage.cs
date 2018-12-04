@@ -7,18 +7,55 @@ namespace com.inspirationlabs.prerenderer
 {
     class RenderPage
     {
+        /// <summary>
+        /// The url of the page to render
+        /// </summary>
         public string pageUrl;
+        /// <summary>
+        /// The script body which should be injected
+        /// </summary>
         public string scriptBody;
+        /// <summary>
+        /// The timeout for the wait function which waits for the components to be hydrated
+        /// </summary>
         public int waitForTimeout = 30000;
+        /// <summary>
+        /// Maximum retry count for pages
+        /// </summary>
         public int maxRetry = 3;
+        /// <summary>
+        /// The selector we wait for app-root is our default selector
+        /// And we wait that the application root has been hydrated
+        /// </summary>
         public string selector = "app-root.hydrated";
 
+        /// <summary>
+        /// The tab in the browser
+        /// </summary>
         private Page pageTab;
+        /// <summary>
+        /// The browser instance
+        /// </summary>
         private Browser pBrowser;
+        /// <summary>
+        /// The url of the host where we should render the page
+        /// </summary>
         private string pageHostUrl;
+        /// <summary>
+        /// The basePath which defaults to /
+        /// </summary>
         private string baseUrl;
+        /// <summary>
+        /// The path to the page
+        /// </summary>
         private string pagePath;
+        /// <summary>
+        /// The output directory
+        /// </summary>
         private string outputDir;
+        /// <summary>
+        /// The amount of retries which had already been done
+        /// </summary>
         private int retryCount = 0;
         /// <summary>
         /// Constructor for the class

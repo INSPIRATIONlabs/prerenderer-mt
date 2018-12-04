@@ -182,15 +182,20 @@ namespace com.inspirationlabs.prerenderer
         {
             try
             {
-                // delete outputpath if it exists
-                if (OutputPath.Length > 0 && Directory.Exists(OutputPath))
+                string op = OutputPath;
+                if(CliOptions.BasePath.Length > 0)
                 {
-                    Directory.Delete(OutputPath, true);
+                    op = OutputPath + CliOptions.BasePath.Replace('/', Path.DirectorySeparatorChar);
                 }
-                if (OutputPath.Length > 0)
+                // delete outputpath if it exists
+                if (op.Length > 0 && Directory.Exists(op))
                 {
-                    Console.WriteLine("Creating outputpath " + OutputPath);
-                    Cwd = Directory.CreateDirectory(OutputPath);
+                    Directory.Delete(op, true);
+                }
+                if (op.Length > 0)
+                {
+                    Console.WriteLine("Creating outputpath " + op);
+                    Cwd = Directory.CreateDirectory(op);
                 }
                 // copy assets etc from source if they exist
                 if (Directory.Exists(SourcePath)
@@ -203,7 +208,7 @@ namespace com.inspirationlabs.prerenderer
                         {
                             CopyDirectory(
                                 SourcePath + Path.DirectorySeparatorChar + name,
-                                OutputPath + Path.DirectorySeparatorChar + name
+                                op + Path.DirectorySeparatorChar + name
                             );
                         }
                     });
@@ -211,14 +216,14 @@ namespace com.inspirationlabs.prerenderer
                     {
                         File.Copy(
                             SourcePath + Path.DirectorySeparatorChar + "robots.txt",
-                            OutputPath + Path.DirectorySeparatorChar + "robots.txt"
+                            op + Path.DirectorySeparatorChar + "robots.txt"
                         );
                     }
                     if (File.Exists(SourcePath + Path.DirectorySeparatorChar + "manifest.json"))
                     {
                         File.Copy(
                             SourcePath + Path.DirectorySeparatorChar + "manifest.json",
-                            OutputPath + Path.DirectorySeparatorChar + "manifest.json"
+                            op + Path.DirectorySeparatorChar + "manifest.json"
                         );
                     }
                 } else
