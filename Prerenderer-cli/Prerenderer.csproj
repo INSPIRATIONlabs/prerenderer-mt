@@ -13,8 +13,9 @@
   </ItemGroup>
   <PropertyGroup>
     <PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
-    <Version>1.2.0</Version>
+    <Version>1.2.4</Version>
     <RootNamespace>com.inspirationlabs.prerenderer</RootNamespace>
+    <Copyright></Copyright>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.3.0" />

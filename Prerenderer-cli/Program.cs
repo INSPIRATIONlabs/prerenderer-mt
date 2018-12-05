@@ -72,10 +72,9 @@ namespace com.inspirationlabs.prerenderer
                 HelpText = "basePath for the rendering (only needed if it is not /)")]
             public string BasePath { get; set; }
 
-            [Option('m', "siteMap",
-                Default = true,
-                HelpText = "Generate sitemap.xml")]
-            public bool SiteMap { get; set; }
+            [Option('m', "siteMapUrl",
+                HelpText = "Domain url (http://www.mydomain.com) for the sitemap")]
+            public string SiteMap { get; set; }
         }
 
         /// <summary>
@@ -277,14 +276,14 @@ namespace com.inspirationlabs.prerenderer
                 // Start the async download function
                 await DownloadAsync(filteredList);
                 // generate sitemap.xml
-                if (CliOptions.SiteMap == true)
+                if (CliOptions.SiteMap != null)
                 {
                     string op = OutputPath;
                     if (CliOptions.BasePath.Length > 0)
                     {
                         op = OutputPath + CliOptions.BasePath.Replace('/', Path.DirectorySeparatorChar);
                     }
-                    GenerateSiteMap(filteredList, op);
+                    GenerateSiteMap(filteredList, op, CliOptions.SiteMap);
                 }
             }
             catch (Exception e)
@@ -380,12 +379,21 @@ namespace com.inspirationlabs.prerenderer
         /// </summary>
         /// <param name="urllist"></param>
         /// <param name="outputpath"></param>
-        static void GenerateSiteMap(List<UrlElement> urllist, string outputpath )
+        static void GenerateSiteMap(List<UrlElement> urllist, string outputpath, string domainurl )
         {
             XDocument doc = new XDocument();
             XNamespace sitemapNs = "http://www.sitemaps.org/schemas/sitemap/0.9";
             XElement urlListEl = new XElement(sitemapNs + "urlset");
-            urlListEl.Add(urllist.Select((x => new XElement(sitemapNs + "url", new XElement(sitemapNs + "loc", x.url)))));
+            string domurl = domainurl;
+            if(domurl.EndsWith("/"))
+            {
+                domurl = domurl.TrimEnd('/');
+            }
+            if(!domurl.StartsWith("http://") && !domurl.StartsWith("https://"))
+            {
+                domurl = "http://" + domurl;
+            }
+            urlListEl.Add(urllist.Select((x => new XElement(sitemapNs + "url", new XElement(sitemapNs + "loc", domurl + x.url)))));
             doc.Add(urlListEl);
             doc.Save(outputpath + "/sitemap.xml");
         }
