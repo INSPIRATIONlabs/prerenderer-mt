@@ -44,6 +44,10 @@ namespace com.inspirationlabs.prerenderer
         /// <summary>
         /// The basePath which defaults to /
         /// </summary>
+        private string domainUrl;
+        /// <summary>
+        /// The base domain of links
+        /// </summary>
         private string baseUrl;
         /// <summary>
         /// The path to the page
@@ -64,7 +68,7 @@ namespace com.inspirationlabs.prerenderer
         /// <param name="outDir"></param>
         /// <param name="hostUrl"></param>
         /// <param name="basePath"></param>
-        public RenderPage(Browser browser, string outDir, string hostUrl, string basePath = "")
+        public RenderPage(Browser browser, string outDir, string hostUrl, string domain, string basePath = "")
         {
             // the browser instance
             pBrowser = browser;
@@ -84,6 +88,11 @@ namespace com.inspirationlabs.prerenderer
                 basePath = basePath.Substring(0, basePath.Length - 1);
             }
             baseUrl = basePath;
+            if (domain.EndsWith("/"))
+            {
+                domain = domain.Substring(0, basePath.Length - 1);
+            }
+            domainUrl = domain;
         }
 
         /// <summary>
@@ -205,8 +214,11 @@ namespace com.inspirationlabs.prerenderer
             if (scriptBody.Length > 0 && pageTab != null)
             {
                 await pageTab.MainFrame.EvaluateFunctionAsync(@"function(){"
+                + @"const config = {
+                    domain: '" + domainUrl + "',"
+                + @"basepath: '" + baseUrl + "'};"
                 + scriptBody
-                + "}");
+                + '}');
             }
         }
 

@@ -318,7 +318,7 @@ namespace com.inspirationlabs.prerenderer
                         if (qt.Count < 1)
                         {
                             Console.WriteLine("recreate page");
-                            RenderPage rPage = new RenderPage(browser, OutputPath, Host, CliOptions.BasePath);
+                            RenderPage rPage = new RenderPage(browser, OutputPath, Host, CliOptions.SiteMap, CliOptions.BasePath);
                             rPage.maxRetry = CliOptions.Retries;
                             rPage.scriptBody = scriptBody;
                             await rPage.StartPage();
