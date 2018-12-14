@@ -2,7 +2,7 @@
   "profiles": {
     "Prerenderer": {
       "commandName": "Project",
-      "commandLineArgs": "-u http://localhost:5000/assets/urls.json -o C:\\Users\\daniel.walther\\development\\mydriver\\stencil-site\\output\\ -s C:\\Users\\daniel.walther\\development\\mydriver\\stencil-site\\www\\ -i C:\\Users\\daniel.walther\\development\\mydriver\\stencil-site\\www\\assets\\prerender.js -m https://www.stenciljs.com"
+      "commandLineArgs": "-u http://localhost:5000/assets/urls.json -o C:\\Users\\daniel.walther\\development\\mydriver\\mydriver-seo-web\\output\\ -s C:\\Users\\daniel.walther\\development\\mydriver\\mydriver-seo-web\\www\\ -i C:\\Users\\daniel.walther\\development\\mydriver\\mydriver-seo-web\\www\\assets\\prerender.js -m https://www.mydriver.com"
     }
   }
 }
