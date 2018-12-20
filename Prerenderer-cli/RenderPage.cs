@@ -206,7 +206,7 @@ namespace com.inspirationlabs.prerenderer
             {
                 await pageTab.MainFrame.EvaluateFunctionAsync(@"function(){"
                 + scriptBody
-                + "}");
+                + '}');
             }
         }
 
