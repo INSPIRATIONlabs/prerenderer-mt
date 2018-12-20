@@ -1,24 +1,9 @@
 const headChildrenPriorities = ['meta', 'title', 'link'];
 
 const filteredHeadChildren = Array.from(document.head.children)
-    .filter(el => headChildrenPriorities.includes(el.nodeName.toLowerCase()))
-    .map(el => {
-        if (el.nodeName.toLowerCase() === 'link'
-            && el.getAttributeNames().includes('rel')
-            && el.getAttributeNames().includes('href')
-            && el.getAttribute('href').startsWith('/')) {
-            const oldVal = el.getAttribute('href');
-            el.setAttribute(
-                'href',
-                config.domain
-                + config.basepath
-                + oldVal
-            );
-        }
-        return el;
-    });
+    .filter(el => headChildrenPriorities.includes(el.nodeName.toLowerCase()));
 
-filteredHeadChildren.sort((a, b) => {
+filteredHeadChildren.sort((a) => {
     if (a.nodeName.toLowerCase() === 'title') {
 
         return -1
@@ -34,7 +19,7 @@ filteredHeadChildren.sort((a, b) => {
         return 0;
     }
 });
-filteredHeadChildren.sort((a, b) => {
+filteredHeadChildren.sort((a) => {
     if (a.nodeName.toLowerCase() === 'meta'
         && a.getAttributeNames().includes('charset')) {
 
@@ -80,7 +65,7 @@ for (const element of document.body.getElementsByTagName('*')) {
     }
 }
 
-Array.from(textNodes.keys()).forEach((node, index) => {
+Array.from(textNodes.keys()).forEach((node) => {
     if (node.nodeValue && node.nodeValue.trim()) {
         const parent = textNodes.get(node);
         const parentId = parent ? parent.getAttribute('ssrv') : null;
